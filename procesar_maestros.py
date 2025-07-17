@@ -280,23 +280,25 @@ class App:
         tree_frame = ttk.Frame(root, padding="10")
         tree_frame.pack(expand=True, fill=tk.BOTH)
 
-        # Crear la tabla con columnas para mostrar ambas droguerías
-        columns = ("Descripción", "Divisor", "Precio Unitario", "Droguería", "Precio Sugerido")
+        # Crear la tabla con columnas para mostrar ambas droguerías incluyendo precio base
+        columns = ("Descripción", "Divisor", "Precio Base", "Precio Unitario", "Droguería", "Precio Sugerido")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=20)
         
         # Configurar encabezados
         self.tree.heading("Descripción", text="Descripción del Producto")
         self.tree.heading("Divisor", text="Divisor")
+        self.tree.heading("Precio Base", text="Precio Base")
         self.tree.heading("Precio Unitario", text="Precio Unitario")
         self.tree.heading("Droguería", text="Droguería")
         self.tree.heading("Precio Sugerido", text="Precio Sugerido")
 
         # Ajustar ancho de columnas
-        self.tree.column("Descripción", width=350, anchor=tk.W)
-        self.tree.column("Divisor", width=80, anchor=tk.CENTER)
-        self.tree.column("Precio Unitario", width=120, anchor=tk.E)
+        self.tree.column("Descripción", width=300, anchor=tk.W)
+        self.tree.column("Divisor", width=70, anchor=tk.CENTER)
+        self.tree.column("Precio Base", width=100, anchor=tk.E)
+        self.tree.column("Precio Unitario", width=110, anchor=tk.E)
         self.tree.column("Droguería", width=100, anchor=tk.CENTER)
-        self.tree.column("Precio Sugerido", width=120, anchor=tk.E)
+        self.tree.column("Precio Sugerido", width=110, anchor=tk.E)
         
         # Configurar tags para colores simplificados
         self.tree.tag_configure('disponible', background='#F0F8FF', font=('Arial', 9))
@@ -440,6 +442,7 @@ class App:
                     'barcode': barcode,
                     'descripcion': descripcion,
                     'divisor': divisor,
+                    'precio_base': asopro_data['precio_base'],
                     'precio_unitario': asopro_data['precio_unitario'],
                     'precio_sugerido': precio_sugerido,
                     'drugstore': 'ASOPROFARMA',
@@ -452,6 +455,7 @@ class App:
                     'barcode': barcode,
                     'descripcion': descripcion,
                     'divisor': divisor,
+                    'precio_base': 0,
                     'precio_unitario': 0,
                     'precio_sugerido': 0,
                     'drugstore': 'ASOPROFARMA',
@@ -468,6 +472,7 @@ class App:
                     'barcode': barcode,
                     'descripcion': descripcion,
                     'divisor': divisor,
+                    'precio_base': sud_data['precio_base'],
                     'precio_unitario': sud_data['precio_unitario'],
                     'precio_sugerido': precio_sugerido,
                     'drugstore': 'DEL SUD',
@@ -480,6 +485,7 @@ class App:
                     'barcode': barcode,
                     'descripcion': descripcion,
                     'divisor': divisor,
+                    'precio_base': 0,
                     'precio_unitario': 0,
                     'precio_sugerido': 0,
                     'drugstore': 'DEL SUD',
@@ -560,18 +566,21 @@ class App:
                     
                     # Preparar datos para mostrar
                     if item['disponible']:
+                        precio_base_str = f"${item['precio_base']:.2f}"
                         precio_str = f"${item['precio_unitario']:.2f}"
                         precio_sugerido_str = f"${item['precio_sugerido']:.0f}" if item['precio_sugerido'] > 0 else "-"
                         divisor_str = f"/{item['divisor']}"
                     else:
+                        precio_base_str = "No disponible"
                         precio_str = "No disponible"
                         precio_sugerido_str = "-"
                         divisor_str = "-"
                     
-                    # Insertar fila en la tabla (ahora con 5 columnas incluyendo Droguería)
+                    # Insertar fila en la tabla (ahora con 6 columnas incluyendo Precio Base)
                     self.tree.insert('', tk.END, values=(
                         item['descripcion'],
                         divisor_str,
+                        precio_base_str,
                         precio_str,
                         item['drugstore'],
                         precio_sugerido_str
@@ -605,13 +614,13 @@ class App:
             return
 
         # Agregar encabezados
-        headers = ["Descripción", "Divisor", "Precio Unitario", "Droguería", "Precio Sugerido"]
+        headers = ["Descripción", "Divisor", "Precio Base", "Precio Unitario", "Droguería", "Precio Sugerido"]
         output_lines = ["\t".join(headers)]
         
         # Agregar datos
         for item_id in items:
             values = self.tree.item(item_id, 'values')
-            if len(values) == 5:
+            if len(values) == 6:
                 row_string = "\t".join(str(v) for v in values)
                 output_lines.append(row_string)
 
@@ -643,12 +652,12 @@ class App:
                 with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
                     writer = csv.writer(csvfile)
                     # Escribir encabezados
-                    writer.writerow(["Descripción", "Divisor", "Precio Unitario", "Droguería", "Precio Sugerido"])
+                    writer.writerow(["Descripción", "Divisor", "Precio Base", "Precio Unitario", "Droguería", "Precio Sugerido"])
                     
                     # Escribir datos
                     for item_id in items:
                         values = self.tree.item(item_id, 'values')
-                        if len(values) == 5:
+                        if len(values) == 6:
                             writer.writerow(values)
                 
                 messagebox.showinfo("Exportación exitosa", f"Resultados exportados a:\n{filename}")
