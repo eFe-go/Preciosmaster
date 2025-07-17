@@ -1,0 +1,114 @@
+{
+  "divisores": {
+    "7793640000839": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7794640170850": {
+      "divisor": 30,
+      "descripcion": "Producto genérico"
+    },
+    "7793640000747": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7793640000754": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7793640002673": {
+      "divisor": 12,
+      "descripcion": "Producto genérico"
+    },
+    "7793640802532": {
+      "divisor": 24,
+      "descripcion": "Producto genérico"
+    },
+    "7798389330070": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "3664798065190": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7793640000761": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7793640000778": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7795378001096": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7795378001058": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7796285275440": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7796285275426": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7795345124223": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7798140250470": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7798140250395": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7798140253334": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7798129416231": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7795380042988": {
+      "divisor": 2,
+      "descripcion": "Producto genérico"
+    },
+    "7506309897998": {
+      "divisor": 50,
+      "descripcion": "Producto genérico"
+    },
+    "7500435221399": {
+      "divisor": 50,
+      "descripcion": "Producto genérico"
+    },
+    "7794640131400": {
+      "divisor": 15,
+      "descripcion": "Producto genérico"
+    },
+    "7798140258445": {
+      "divisor": 1,
+      "descripcion": "Producto genérico"
+    },
+    "7796285275419": {
+      "divisor": 3,
+      "descripcion": "Producto genérico"
+    },
+    "7798140252917": {
+      "divisor": 50,
+      "descripcion": "Producto genérico"
+    }
+  },
+  "configuracion": {
+    "color_asoprofarma": "#2ECC40",
+    "color_delsud": "#0074D9",
+    "mostrar_diferencia": true,
+    "resaltar_mejor_precio": true
+  }
+}
