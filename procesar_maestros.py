@@ -1545,11 +1545,8 @@ class App:
 
     def format_price_for_export(self, price):
         """Formatea el precio según las reglas del CSV objetivo."""
-        if price < 1000:
-            return f"${price:.0f}"
-        else:
-            # Para precios >= 1000, usar formato con comas y comillas
-            return f'"${price:,.0f}"'
+        # Devolver solo el número sin símbolos ni comillas
+        return f"{price:.0f}"
 
 
 # --- Ejecución Principal ---

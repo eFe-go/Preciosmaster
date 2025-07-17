@@ -103,6 +103,10 @@
     "7798140252917": {
       "divisor": 50,
       "descripcion": "Producto genérico"
+    },
+    "7500435221375": {
+      "divisor": 50.0,
+      "descripcion": "Vick vitapirena comun"
     }
   },
   "configuracion": {
