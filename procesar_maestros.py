@@ -319,7 +319,7 @@ class App:
         self.copy_button = ttk.Button(bottom_frame, text="Copiar al Portapapeles", command=self.copy_to_clipboard, state=tk.DISABLED)
         self.copy_button.pack(side=tk.LEFT, padx=5)
         
-        self.export_button = ttk.Button(bottom_frame, text="Exportar a CSV", command=self.export_to_csv, state=tk.DISABLED)
+        self.export_button = ttk.Button(bottom_frame, text="Exportar a CSV", command=self.open_price_selection_window, state=tk.DISABLED)
         self.export_button.pack(side=tk.LEFT, padx=5)
 
         # --- Barra de estado ---
@@ -785,6 +785,771 @@ class App:
         
         # Botón cerrar
         ttk.Button(config_window, text="Cerrar", command=config_window.destroy).pack(pady=10)
+
+    def open_price_selection_window(self):
+        """Abre la ventana compacta de selección de precios para exportar CSV."""
+        items = self.tree.get_children()
+        if not items:
+            messagebox.showinfo("Nada que exportar", "La tabla de resultados está vacía.")
+            return
+
+        # Variables para almacenar las selecciones
+        self.price_selections = {}
+        self.custom_prices = {}
+        self.price_vars = {}  # Para radio buttons
+        
+        # Procesar datos de la tabla actual para obtener información completa
+        self.products_data = self.prepare_products_for_selection()
+        
+        # Crear ventana modal compacta con tamaño auto-ajustable
+        self.price_window = tk.Toplevel(self.root)
+        self.price_window.title("🎯 Selección de Precios para Exportar")
+        self.price_window.transient(self.root)
+        self.price_window.grab_set()
+        self.price_window.configure(bg='#f8f9fa')
+        
+        # --- Header compacto ---
+        header_frame = tk.Frame(self.price_window, bg='#2c3e50', height=40)
+        header_frame.pack(fill=tk.X)
+        header_frame.pack_propagate(False)
+        
+        title_label = tk.Label(header_frame, text="Configuración de Exportación de Precios", 
+                              font=('Arial', 12, 'bold'), fg='white', bg='#2c3e50')
+        title_label.pack(pady=8)
+        
+        # --- Frame principal ---
+        main_container = tk.Frame(self.price_window, bg='#f8f9fa')
+        main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # --- Configuración del archivo compacta ---
+        config_frame = tk.LabelFrame(main_container, text="⚙️ Configuración", 
+                                    font=('Arial', 9, 'bold'), bg='#f8f9fa', fg='#2c3e50')
+        config_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        config_inner = tk.Frame(config_frame, bg='#f8f9fa')
+        config_inner.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Campos de configuración horizontales
+        tk.Label(config_inner, text="📅 Fecha:", font=('Arial', 9), bg='#f8f9fa').grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.export_date = tk.StringVar(value="20-feb")
+        date_entry = tk.Entry(config_inner, textvariable=self.export_date, width=12, font=('Arial', 9))
+        date_entry.grid(row=0, column=1, padx=(0, 15), sticky=tk.W)
+        
+        tk.Label(config_inner, text="📍 Ubicación:", font=('Arial', 9), bg='#f8f9fa').grid(row=0, column=2, sticky=tk.W, padx=(0, 5))
+        self.export_location = tk.StringVar(value="San Luis")
+        location_entry = tk.Entry(config_inner, textvariable=self.export_location, width=12, font=('Arial', 9))
+        location_entry.grid(row=0, column=3, sticky=tk.W)
+        
+        # --- Botones de selección masiva compactos ---
+        bulk_frame = tk.Frame(main_container, bg='#f8f9fa')
+        bulk_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        tk.Label(bulk_frame, text="🚀 Selección Rápida:", font=('Arial', 9, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Botones más compactos
+        asopro_btn = tk.Button(bulk_frame, text="✓ ASOPRO", font=('Arial', 8, 'bold'),
+                              bg='#27ae60', fg='white', relief=tk.FLAT, padx=12, pady=4,
+                              command=lambda: self.bulk_select_modern('ASOPROFARMA'))
+        asopro_btn.pack(side=tk.LEFT, padx=2)
+        
+        sud_btn = tk.Button(bulk_frame, text="✓ DEL SUD", font=('Arial', 8, 'bold'),
+                           bg='#3498db', fg='white', relief=tk.FLAT, padx=12, pady=4,
+                           command=lambda: self.bulk_select_modern('DEL SUD'))
+        sud_btn.pack(side=tk.LEFT, padx=2)
+        
+        sugerido_btn = tk.Button(bulk_frame, text="✓ Sugerido", font=('Arial', 8, 'bold'),
+                                bg='#f39c12', fg='white', relief=tk.FLAT, padx=12, pady=4,
+                                command=lambda: self.bulk_select_modern('SUGERIDO'))
+        sugerido_btn.pack(side=tk.LEFT, padx=2)
+        
+        # --- Área de productos con tabla alineada ---
+        products_container = tk.Frame(main_container, bg='#f8f9fa')
+        products_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Canvas para scroll
+        canvas = tk.Canvas(products_container, bg='#f8f9fa', highlightthickness=0)
+        scrollbar = ttk.Scrollbar(products_container, orient="vertical", command=canvas.yview)
+        self.scrollable_frame = tk.Frame(canvas, bg='#f8f9fa')
+        
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Crear tabla con alineación perfecta
+        self.create_aligned_product_table()
+        
+        # --- Botones de acción compactos ---
+        action_frame = tk.Frame(self.price_window, bg='#ecf0f1', height=50)
+        action_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        action_frame.pack_propagate(False)
+        
+        button_container = tk.Frame(action_frame, bg='#ecf0f1')
+        button_container.pack(expand=True, fill=tk.Y)
+        
+        export_btn = tk.Button(button_container, text="💾 Exportar CSV", font=('Arial', 10, 'bold'),
+                              bg='#e74c3c', fg='white', relief=tk.FLAT, padx=20, pady=6,
+                              command=self.export_custom_csv_modern)
+        export_btn.pack(side=tk.RIGHT, padx=8, pady=12)
+        
+        cancel_btn = tk.Button(button_container, text="✕ Cancelar", font=('Arial', 10),
+                              bg='#95a5a6', fg='white', relief=tk.FLAT, padx=20, pady=6,
+                              command=self.price_window.destroy)
+        cancel_btn.pack(side=tk.RIGHT, padx=3, pady=12)
+        
+        # Auto-ajustar tamaño de la ventana
+        self.price_window.update_idletasks()
+        self.auto_resize_window()
+
+    def prepare_products_for_selection(self):
+        """Prepara los datos de productos para la ventana de selección de precios."""
+        products_data = {}
+        items = self.tree.get_children()
+        
+        for item_id in items:
+            values = self.tree.item(item_id, 'values')
+            if len(values) == 6:
+                descripcion, divisor_str, precio_base_str, precio_unitario_str, drugstore, precio_sugerido_str = values
+                
+                # Limpiar datos
+                barcode = descripcion  # Usaremos descripción como clave única por ahora
+                divisor = divisor_str.replace('/', '') if divisor_str != '-' else '1'
+                
+                # Extraer precios numéricos
+                precio_base = 0
+                precio_unitario = 0
+                precio_sugerido = 0
+                
+                if precio_base_str != "No disponible":
+                    precio_base = float(precio_base_str.replace('$', '').replace(',', ''))
+                if precio_unitario_str != "No disponible":
+                    precio_unitario = float(precio_unitario_str.replace('$', '').replace(',', ''))
+                if precio_sugerido_str != "-" and precio_sugerido_str != "":
+                    precio_sugerido = float(precio_sugerido_str.replace('$', '').replace(',', ''))
+                
+                # Crear o actualizar registro del producto
+                if descripcion not in products_data:
+                    products_data[descripcion] = {
+                        'descripcion': descripcion,
+                        'divisor': divisor,
+                        'asopro_precio': 0,
+                        'delsud_precio': 0,
+                        'precio_sugerido': 0,
+                        'available_sources': []
+                    }
+                
+                # Agregar datos según la droguería
+                if drugstore == 'ASOPROFARMA':
+                    products_data[descripcion]['asopro_precio'] = precio_unitario
+                    products_data[descripcion]['available_sources'].append('ASOPROFARMA')
+                    if precio_sugerido > 0:
+                        products_data[descripcion]['precio_sugerido'] = precio_sugerido
+                elif drugstore == 'DEL SUD':
+                    products_data[descripcion]['delsud_precio'] = precio_unitario
+                    products_data[descripcion]['available_sources'].append('DEL SUD')
+                    if precio_sugerido > 0:
+                        products_data[descripcion]['precio_sugerido'] = precio_sugerido
+        
+        return products_data
+
+    def create_aligned_product_table(self):
+        """Crea una tabla perfectamente alineada con encabezados y datos."""
+        # Definir anchos fijos para cada columna (en píxeles)
+        self.column_widths = {
+            'producto': 320,
+            'divisor': 50,
+            'asopro': 80,
+            'delsud': 80,
+            'sugerido': 80,
+            'final': 90,
+            'edit': 50
+        }
+        
+        # Configurar el grid principal del scrollable_frame
+        self.scrollable_frame.grid_columnconfigure(0, weight=0, minsize=self.column_widths['producto'])
+        self.scrollable_frame.grid_columnconfigure(1, weight=0, minsize=self.column_widths['divisor'])
+        self.scrollable_frame.grid_columnconfigure(2, weight=0, minsize=self.column_widths['asopro'])
+        self.scrollable_frame.grid_columnconfigure(3, weight=0, minsize=self.column_widths['delsud'])
+        self.scrollable_frame.grid_columnconfigure(4, weight=0, minsize=self.column_widths['sugerido'])
+        self.scrollable_frame.grid_columnconfigure(5, weight=0, minsize=self.column_widths['final'])
+        self.scrollable_frame.grid_columnconfigure(6, weight=0, minsize=self.column_widths['edit'])
+        
+        # Crear encabezado de tabla con alineación perfecta
+        self.create_table_header()
+        
+        # Crear filas de productos con alineación perfecta
+        self.create_table_rows()
+    
+    def create_table_header(self):
+        """Crea el encabezado de tabla con alineación perfecta."""
+        header_row = 0
+        
+        # Producto
+        tk.Label(self.scrollable_frame, text="Producto", font=('Arial', 9, 'bold'),
+                bg='#34495e', fg='white', width=int(self.column_widths['producto']/8),
+                anchor=tk.CENTER, relief=tk.FLAT).grid(
+                row=header_row, column=0, sticky=tk.EW, padx=1, pady=1)
+        
+        # Divisor
+        tk.Label(self.scrollable_frame, text="Div", font=('Arial', 9, 'bold'),
+                bg='#34495e', fg='white', width=int(self.column_widths['divisor']/8),
+                anchor=tk.CENTER, relief=tk.FLAT).grid(
+                row=header_row, column=1, sticky=tk.EW, padx=1, pady=1)
+        
+        # ASOPROFARMA
+        tk.Label(self.scrollable_frame, text="ASOPROFARMA", font=('Arial', 9, 'bold'),
+                bg='#34495e', fg='white', width=int(self.column_widths['asopro']/8),
+                anchor=tk.CENTER, relief=tk.FLAT).grid(
+                row=header_row, column=2, sticky=tk.EW, padx=1, pady=1)
+        
+        # DEL SUD
+        tk.Label(self.scrollable_frame, text="DEL SUD", font=('Arial', 9, 'bold'),
+                bg='#34495e', fg='white', width=int(self.column_widths['delsud']/8),
+                anchor=tk.CENTER, relief=tk.FLAT).grid(
+                row=header_row, column=3, sticky=tk.EW, padx=1, pady=1)
+        
+        # SUGERIDO
+        tk.Label(self.scrollable_frame, text="SUGERIDO", font=('Arial', 9, 'bold'),
+                bg='#34495e', fg='white', width=int(self.column_widths['sugerido']/8),
+                anchor=tk.CENTER, relief=tk.FLAT).grid(
+                row=header_row, column=4, sticky=tk.EW, padx=1, pady=1)
+        
+        # Precio Final
+        tk.Label(self.scrollable_frame, text="Precio Final", font=('Arial', 9, 'bold'),
+                bg='#34495e', fg='white', width=int(self.column_widths['final']/8),
+                anchor=tk.CENTER, relief=tk.FLAT).grid(
+                row=header_row, column=5, sticky=tk.EW, padx=1, pady=1)
+        
+        # Editar
+        tk.Label(self.scrollable_frame, text="Edit", font=('Arial', 9, 'bold'),
+                bg='#34495e', fg='white', width=int(self.column_widths['edit']/8),
+                anchor=tk.CENTER, relief=tk.FLAT).grid(
+                row=header_row, column=6, sticky=tk.EW, padx=1, pady=1)
+    
+    def create_table_rows(self):
+        """Crea las filas de productos con alineación perfecta."""
+        # Ordenar productos alfabéticamente
+        sorted_products = sorted(self.products_data.items(), key=lambda x: x[0])
+        
+        for i, (descripcion, data) in enumerate(sorted_products):
+            row_num = i + 1  # +1 porque row 0 es el header
+            
+            # Color de fondo alternado
+            bg_color = '#ffffff' if i % 2 == 0 else '#f8f9fa'
+            
+            # Variable para radio buttons de este producto
+            price_var = tk.StringVar()
+            self.price_vars[descripcion] = price_var
+            
+            # Determinar selección inicial
+            initial_selection = "SUGERIDO"
+            if data['precio_sugerido'] > 0:
+                initial_selection = "SUGERIDO"
+            elif data['asopro_precio'] >= data['delsud_precio']:
+                initial_selection = "ASOPROFARMA"
+            else:
+                initial_selection = "DEL SUD"
+            
+            price_var.set(initial_selection)
+            self.price_selections[descripcion] = initial_selection
+            
+            # Columna 0: Nombre del producto
+            product_name = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
+            product_label = tk.Label(self.scrollable_frame, text=product_name, 
+                                   font=('Arial', 9), bg=bg_color, fg='#2c3e50',
+                                   anchor=tk.W, width=int(self.column_widths['producto']/8))
+            product_label.grid(row=row_num, column=0, sticky=tk.EW, padx=1, pady=1)
+            
+            # Columna 1: Divisor
+            divisor_label = tk.Label(self.scrollable_frame, text=f"/{data['divisor']}", 
+                                   font=('Arial', 8), bg=bg_color, fg='#7f8c8d',
+                                   anchor=tk.CENTER, width=int(self.column_widths['divisor']/8))
+            divisor_label.grid(row=row_num, column=1, sticky=tk.EW, padx=1, pady=1)
+            
+            # Columna 2: ASOPROFARMA (Radio + Precio)
+            asopro_frame = tk.Frame(self.scrollable_frame, bg='#e8f5e9', relief=tk.FLAT)
+            asopro_frame.grid(row=row_num, column=2, sticky=tk.EW, padx=1, pady=1)
+            
+            asopro_radio = tk.Radiobutton(asopro_frame, text="", 
+                                         variable=price_var, value="ASOPROFARMA",
+                                         bg='#e8f5e9', fg='#27ae60', selectcolor='#27ae60',
+                                         command=lambda d=descripcion: self.update_selected_price_table(d))
+            asopro_radio.pack(side=tk.LEFT, padx=2)
+            
+            asopro_price = f"${data['asopro_precio']:.0f}" if data['asopro_precio'] > 0 else "N/A"
+            tk.Label(asopro_frame, text=asopro_price, font=('Arial', 8, 'bold'),
+                    bg='#e8f5e9', fg='#27ae60', anchor=tk.E).pack(side=tk.RIGHT, padx=2)
+            
+            # Columna 3: DEL SUD (Radio + Precio)
+            sud_frame = tk.Frame(self.scrollable_frame, bg='#ebf3fd', relief=tk.FLAT)
+            sud_frame.grid(row=row_num, column=3, sticky=tk.EW, padx=1, pady=1)
+            
+            sud_radio = tk.Radiobutton(sud_frame, text="", 
+                                      variable=price_var, value="DEL SUD",
+                                      bg='#ebf3fd', fg='#3498db', selectcolor='#3498db',
+                                      command=lambda d=descripcion: self.update_selected_price_table(d))
+            sud_radio.pack(side=tk.LEFT, padx=2)
+            
+            sud_price = f"${data['delsud_precio']:.0f}" if data['delsud_precio'] > 0 else "N/A"
+            tk.Label(sud_frame, text=sud_price, font=('Arial', 8, 'bold'),
+                    bg='#ebf3fd', fg='#3498db', anchor=tk.E).pack(side=tk.RIGHT, padx=2)
+            
+            # Columna 4: SUGERIDO (Radio + Precio)
+            sugerido_frame = tk.Frame(self.scrollable_frame, bg='#fef9e7', relief=tk.FLAT)
+            sugerido_frame.grid(row=row_num, column=4, sticky=tk.EW, padx=1, pady=1)
+            
+            sugerido_radio = tk.Radiobutton(sugerido_frame, text="", 
+                                           variable=price_var, value="SUGERIDO",
+                                           bg='#fef9e7', fg='#f39c12', selectcolor='#f39c12',
+                                           command=lambda d=descripcion: self.update_selected_price_table(d))
+            sugerido_radio.pack(side=tk.LEFT, padx=2)
+            
+            sugerido_price = f"${data['precio_sugerido']:.0f}" if data['precio_sugerido'] > 0 else "N/A"
+            tk.Label(sugerido_frame, text=sugerido_price, font=('Arial', 8, 'bold'),
+                    bg='#fef9e7', fg='#f39c12', anchor=tk.E).pack(side=tk.RIGHT, padx=2)
+            
+            # Columna 5: Precio Final
+            final_price_text = self.get_selected_price_for_display(descripcion, data, initial_selection)
+            final_price = tk.Label(self.scrollable_frame, text=final_price_text, 
+                                  font=('Arial', 9, 'bold'), bg=bg_color, fg='#e74c3c',
+                                  anchor=tk.E, width=int(self.column_widths['final']/8))
+            final_price.grid(row=row_num, column=5, sticky=tk.EW, padx=1, pady=1)
+            
+            # Guardar referencia para actualizar después
+            setattr(final_price, 'descripcion', descripcion)
+            setattr(final_price, 'row_num', row_num)
+            
+            # Columna 6: Botón Editar (con nuevo icono)
+            edit_btn = tk.Button(self.scrollable_frame, text="🖊️", font=('Arial', 12),
+                                bg='#3498db', fg='white', relief=tk.FLAT, width=4,
+                                command=lambda d=descripcion, l=final_price: self.edit_custom_price_table(d, l))
+            edit_btn.grid(row=row_num, column=6, sticky=tk.EW, padx=1, pady=1)
+
+    def update_selected_price_table(self, descripcion):
+        """Actualiza el precio final cuando se cambia la selección en la tabla."""
+        selection = self.price_vars[descripcion].get()
+        self.price_selections[descripcion] = selection
+        
+        # Buscar el label correspondiente y actualizar el precio final
+        for child in self.scrollable_frame.winfo_children():
+            if hasattr(child, 'descripcion') and child.descripcion == descripcion:
+                data = self.products_data[descripcion]
+                final_price_text = self.get_selected_price_for_display(descripcion, data, selection)
+                child.config(text=final_price_text)
+                break
+    
+    def update_selected_price_compact(self, descripcion):
+        """Actualiza el precio final cuando se cambia la selección en layout compacto."""
+        selection = self.price_vars[descripcion].get()
+        self.price_selections[descripcion] = selection
+        
+        # Buscar el row correspondiente y actualizar el precio final
+        for child in self.scrollable_frame.winfo_children():
+            if hasattr(child, 'descripcion') and child.descripcion == descripcion:
+                data = self.products_data[descripcion]
+                final_price_text = self.get_selected_price_for_display(descripcion, data, selection)
+                child.final_price_label.config(text=final_price_text)
+                break
+    
+    def update_selected_price(self, descripcion):
+        """Actualiza el precio final cuando se cambia la selección."""
+        selection = self.price_vars[descripcion].get()
+        self.price_selections[descripcion] = selection
+        
+        # Buscar el card correspondiente y actualizar el precio final
+        for child in self.scrollable_frame.winfo_children():
+            if hasattr(child, 'descripcion') and child.descripcion == descripcion:
+                data = self.products_data[descripcion]
+                final_price_text = self.get_selected_price_for_display(descripcion, data, selection)
+                child.final_price_label.config(text=final_price_text)
+                break
+
+    def get_selected_price_for_display(self, descripcion, data, selection):
+        """Obtiene el precio seleccionado formateado para mostrar."""
+        # Si hay precio personalizado, usarlo
+        if descripcion in self.custom_prices and self.custom_prices[descripcion] > 0:
+            return f"${self.custom_prices[descripcion]:.0f} (Personalizado)"
+        
+        # Usar selección actual
+        if selection == "ASOPROFARMA" and data['asopro_precio'] > 0:
+            return f"${data['asopro_precio']:.0f}"
+        elif selection == "DEL SUD" and data['delsud_precio'] > 0:
+            return f"${data['delsud_precio']:.0f}"
+        elif selection == "SUGERIDO" and data['precio_sugerido'] > 0:
+            return f"${data['precio_sugerido']:.0f}"
+        
+        return "No disponible"
+
+    def edit_custom_price_compact(self, descripcion, row_frame):
+        """Abre ventana compacta para editar precio personalizado."""
+        # Ventana de edición compacta
+        edit_window = tk.Toplevel(self.price_window)
+        edit_window.title("✏️ Editar Precio")
+        edit_window.geometry("350x200")
+        edit_window.transient(self.price_window)
+        edit_window.grab_set()
+        edit_window.configure(bg='#f8f9fa')
+        
+        # Header compacto
+        header = tk.Frame(edit_window, bg='#3498db', height=35)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        
+        tk.Label(header, text="Editar Precio", font=('Arial', 11, 'bold'),
+                fg='white', bg='#3498db').pack(pady=8)
+        
+        # Contenido compacto
+        content = tk.Frame(edit_window, bg='#f8f9fa')
+        content.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        tk.Label(content, text=f"Producto:", font=('Arial', 9, 'bold'),
+                bg='#f8f9fa').pack(anchor=tk.W)
+        tk.Label(content, text=descripcion[:40] + ("..." if len(descripcion) > 40 else ""),
+                font=('Arial', 9), bg='#f8f9fa', fg='#7f8c8d').pack(anchor=tk.W, pady=(0, 10))
+        
+        tk.Label(content, text="Nuevo Precio:", font=('Arial', 10, 'bold'),
+                bg='#f8f9fa').pack(anchor=tk.W)
+        
+        # Campo de entrada compacto
+        price_frame = tk.Frame(content, bg='#f8f9fa')
+        price_frame.pack(fill=tk.X, pady=(5, 15))
+        
+        current_price = self.custom_prices.get(descripcion, 0)
+        if current_price == 0:
+            # Usar precio actual seleccionado
+            data = self.products_data[descripcion]
+            selection = self.price_selections.get(descripcion, 'SUGERIDO')
+            if selection == "ASOPROFARMA":
+                current_price = data['asopro_precio']
+            elif selection == "DEL SUD":
+                current_price = data['delsud_precio']
+            else:
+                current_price = data['precio_sugerido']
+        
+        price_var = tk.StringVar(value=f"{current_price:.0f}")
+        price_entry = tk.Entry(price_frame, textvariable=price_var, width=15,
+                              font=('Arial', 12), relief=tk.FLAT, bd=2, justify=tk.CENTER)
+        price_entry.pack()
+        price_entry.select_range(0, tk.END)
+        price_entry.focus()
+        
+        # Botones compactos
+        button_frame = tk.Frame(content, bg='#f8f9fa')
+        button_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        def save_custom_price():
+            try:
+                new_price = float(price_var.get())
+                self.custom_prices[descripcion] = new_price
+                self.price_selections[descripcion] = "PERSONALIZADO"
+                
+                # Actualizar display
+                final_price_text = f"${new_price:.0f} (Personalizado)"
+                row_frame.final_price_label.config(text=final_price_text)
+                
+                edit_window.destroy()
+            except ValueError:
+                messagebox.showerror("Error", "Por favor ingrese un precio válido.")
+        
+        save_btn = tk.Button(button_frame, text="💾 Guardar", font=('Arial', 9, 'bold'),
+                            bg='#27ae60', fg='white', relief=tk.FLAT, padx=15, pady=5,
+                            command=save_custom_price)
+        save_btn.pack(side=tk.RIGHT, padx=5)
+        
+        cancel_btn = tk.Button(button_frame, text="✕ Cancelar", font=('Arial', 9),
+                              bg='#95a5a6', fg='white', relief=tk.FLAT, padx=15, pady=5,
+                              command=edit_window.destroy)
+        cancel_btn.pack(side=tk.RIGHT)
+    
+    def edit_custom_price(self, descripcion, card):
+        """Abre ventana para editar precio personalizado."""
+        # Ventana de edición moderna
+        edit_window = tk.Toplevel(self.price_window)
+        edit_window.title("✏️ Editar Precio Personalizado")
+        edit_window.geometry("400x250")
+        edit_window.transient(self.price_window)
+        edit_window.grab_set()
+        edit_window.configure(bg='#f0f0f0')
+        
+        # Header
+        header = tk.Frame(edit_window, bg='#3498db', height=50)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        
+        tk.Label(header, text="Editar Precio", font=('Arial', 14, 'bold'),
+                fg='white', bg='#3498db').pack(pady=12)
+        
+        # Contenido
+        content = tk.Frame(edit_window, bg='#f0f0f0')
+        content.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        tk.Label(content, text=f"Producto:", font=('Arial', 10, 'bold'),
+                bg='#f0f0f0').pack(anchor=tk.W)
+        tk.Label(content, text=descripcion[:50] + ("..." if len(descripcion) > 50 else ""),
+                font=('Arial', 10), bg='#f0f0f0', fg='#7f8c8d').pack(anchor=tk.W, pady=(0, 15))
+        
+        tk.Label(content, text="Nuevo Precio:", font=('Arial', 12, 'bold'),
+                bg='#f0f0f0').pack(anchor=tk.W)
+        
+        # Campo de entrada con estilo
+        price_frame = tk.Frame(content, bg='#f0f0f0')
+        price_frame.pack(fill=tk.X, pady=(5, 20))
+        
+        current_price = self.custom_prices.get(descripcion, 0)
+        if current_price == 0:
+            # Usar precio actual seleccionado
+            data = self.products_data[descripcion]
+            selection = self.price_selections.get(descripcion, 'SUGERIDO')
+            if selection == "ASOPROFARMA":
+                current_price = data['asopro_precio']
+            elif selection == "DEL SUD":
+                current_price = data['delsud_precio']
+            else:
+                current_price = data['precio_sugerido']
+        
+        price_var = tk.StringVar(value=f"{current_price:.0f}")
+        price_entry = tk.Entry(price_frame, textvariable=price_var, width=20,
+                              font=('Arial', 14), relief=tk.FLAT, bd=2, justify=tk.CENTER)
+        price_entry.pack()
+        price_entry.select_range(0, tk.END)
+        price_entry.focus()
+        
+        # Botones
+        button_frame = tk.Frame(content, bg='#f0f0f0')
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        def save_custom_price():
+            try:
+                new_price = float(price_var.get())
+                self.custom_prices[descripcion] = new_price
+                self.price_selections[descripcion] = "PERSONALIZADO"
+                
+                # Actualizar display
+                final_price_text = f"${new_price:.0f} (Personalizado)"
+                card.final_price_label.config(text=final_price_text)
+                
+                edit_window.destroy()
+            except ValueError:
+                messagebox.showerror("Error", "Por favor ingrese un precio válido.")
+        
+        save_btn = tk.Button(button_frame, text="💾 Guardar", font=('Arial', 11, 'bold'),
+                            bg='#27ae60', fg='white', relief=tk.FLAT, padx=20, pady=8,
+                            command=save_custom_price)
+        save_btn.pack(side=tk.RIGHT, padx=5)
+        
+        cancel_btn = tk.Button(button_frame, text="✕ Cancelar", font=('Arial', 11),
+                              bg='#95a5a6', fg='white', relief=tk.FLAT, padx=20, pady=8,
+                              command=edit_window.destroy)
+        cancel_btn.pack(side=tk.RIGHT)
+
+    def edit_custom_price_table(self, descripcion, price_label):
+        """Abre ventana compacta para editar precio personalizado en la tabla."""
+        # Ventana de edición compacta
+        edit_window = tk.Toplevel(self.price_window)
+        edit_window.title("🖊️ Editar Precio")
+        edit_window.geometry("350x200")
+        edit_window.transient(self.price_window)
+        edit_window.grab_set()
+        edit_window.configure(bg='#f8f9fa')
+        
+        # Header compacto
+        header = tk.Frame(edit_window, bg='#3498db', height=35)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        
+        tk.Label(header, text="Editar Precio", font=('Arial', 11, 'bold'),
+                fg='white', bg='#3498db').pack(pady=8)
+        
+        # Contenido compacto
+        content = tk.Frame(edit_window, bg='#f8f9fa')
+        content.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+        
+        tk.Label(content, text=f"Producto:", font=('Arial', 9, 'bold'),
+                bg='#f8f9fa').pack(anchor=tk.W)
+        tk.Label(content, text=descripcion[:40] + ("..." if len(descripcion) > 40 else ""),
+                font=('Arial', 9), bg='#f8f9fa', fg='#7f8c8d').pack(anchor=tk.W, pady=(0, 10))
+        
+        tk.Label(content, text="Nuevo Precio:", font=('Arial', 10, 'bold'),
+                bg='#f8f9fa').pack(anchor=tk.W)
+        
+        # Campo de entrada compacto
+        price_frame = tk.Frame(content, bg='#f8f9fa')
+        price_frame.pack(fill=tk.X, pady=(5, 15))
+        
+        current_price = self.custom_prices.get(descripcion, 0)
+        if current_price == 0:
+            # Usar precio actual seleccionado
+            data = self.products_data[descripcion]
+            selection = self.price_selections.get(descripcion, 'SUGERIDO')
+            if selection == "ASOPROFARMA":
+                current_price = data['asopro_precio']
+            elif selection == "DEL SUD":
+                current_price = data['delsud_precio']
+            else:
+                current_price = data['precio_sugerido']
+        
+        price_var = tk.StringVar(value=f"{current_price:.0f}")
+        price_entry = tk.Entry(price_frame, textvariable=price_var, width=15,
+                              font=('Arial', 12), relief=tk.FLAT, bd=2, justify=tk.CENTER)
+        price_entry.pack()
+        price_entry.select_range(0, tk.END)
+        price_entry.focus()
+        
+        # Botones compactos
+        button_frame = tk.Frame(content, bg='#f8f9fa')
+        button_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        def save_custom_price():
+            try:
+                new_price = float(price_var.get())
+                self.custom_prices[descripcion] = new_price
+                self.price_selections[descripcion] = "PERSONALIZADO"
+                
+                # Actualizar display
+                final_price_text = f"${new_price:.0f} (Personalizado)"
+                price_label.config(text=final_price_text)
+                
+                edit_window.destroy()
+            except ValueError:
+                messagebox.showerror("Error", "Por favor ingrese un precio válido.")
+        
+        save_btn = tk.Button(button_frame, text="💾 Guardar", font=('Arial', 9, 'bold'),
+                            bg='#27ae60', fg='white', relief=tk.FLAT, padx=15, pady=5,
+                            command=save_custom_price)
+        save_btn.pack(side=tk.RIGHT, padx=5)
+        
+        cancel_btn = tk.Button(button_frame, text="✕ Cancelar", font=('Arial', 9),
+                              bg='#95a5a6', fg='white', relief=tk.FLAT, padx=15, pady=5,
+                              command=edit_window.destroy)
+        cancel_btn.pack(side=tk.RIGHT)
+
+    def bulk_select_modern(self, selection_type):
+        """Selección masiva para la interfaz moderna y compacta."""
+        for descripcion in self.price_vars:
+            self.price_vars[descripcion].set(selection_type)
+            self.price_selections[descripcion] = selection_type
+            self.update_selected_price_table(descripcion)
+    
+    def auto_resize_window(self):
+        """Auto-ajusta el tamaño de la ventana basado en el contenido de la tabla."""
+        # Calcular dimensiones basadas en el contenido
+        num_products = len(self.products_data)
+        
+        # Anchura calculada a partir de las columnas
+        total_column_width = sum(self.column_widths.values())
+        base_width = total_column_width + 50  # Espacio adicional para scrollbar y márgenes
+        
+        # Altura base + altura por producto
+        base_height = 120  # Header + config + botones (más compacto)
+        product_height = 25   # Altura por producto en tabla
+        max_visible_products = 22  # Máximo de productos visibles sin scroll
+        
+        # Calcular altura total
+        if num_products <= max_visible_products:
+            total_height = base_height + (num_products * product_height) + 80
+        else:
+            total_height = base_height + (max_visible_products * product_height) + 80
+        
+        # Límites de tamaño optimizados para la tabla
+        min_width = total_column_width + 30
+        max_width = min(total_column_width + 100, 1100)
+        min_height, max_height = 350, 750
+        
+        # Aplicar límites
+        final_width = max(min_width, min(base_width, max_width))
+        final_height = max(min_height, min(total_height, max_height))
+        
+        # Centrar la ventana
+        screen_width = self.price_window.winfo_screenwidth()
+        screen_height = self.price_window.winfo_screenheight()
+        x = (screen_width - final_width) // 2
+        y = (screen_height - final_height) // 2
+        
+        # Aplicar geometría
+        self.price_window.geometry(f"{final_width}x{final_height}+{x}+{y}")
+        
+        # Configurar tamaño mínimo y máximo
+        self.price_window.minsize(min_width, min_height)
+        self.price_window.maxsize(max_width, max_height)
+
+    def export_custom_csv_modern(self):
+        """Exporta CSV con la interfaz moderna."""
+        # Solicitar nombre de archivo
+        filename = filedialog.asksaveasfilename(
+            title="💾 Guardar CSV de precios",
+            defaultextension=".csv",
+            filetypes=(("Archivos CSV", "*.csv"), ("Todos los archivos", "*.*"))
+        )
+        
+        if not filename:
+            return
+        
+        try:
+            # Recopilar datos finales
+            export_data = []
+            
+            for descripcion, data in self.products_data.items():
+                selection = self.price_selections.get(descripcion, 'SUGERIDO')
+                
+                # Determinar precio final
+                final_price = 0
+                if descripcion in self.custom_prices and self.custom_prices[descripcion] > 0:
+                    final_price = self.custom_prices[descripcion]
+                elif selection == "ASOPROFARMA" and data['asopro_precio'] > 0:
+                    final_price = data['asopro_precio']
+                elif selection == "DEL SUD" and data['delsud_precio'] > 0:
+                    final_price = data['delsud_precio']
+                elif selection == "SUGERIDO" and data['precio_sugerido'] > 0:
+                    final_price = data['precio_sugerido']
+                
+                if final_price > 0:
+                    export_data.append({
+                        'descripcion': descripcion,
+                        'divisor': f"/{data['divisor']}",
+                        'precio': final_price
+                    })
+            
+            # Ordenar alfabéticamente
+            export_data.sort(key=lambda x: x['descripcion'])
+            
+            # Escribir archivo con formato específico
+            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                
+                # Línea 1: Fecha de actualización
+                writer.writerow([f"Ultima act", self.export_date.get(), ""])
+                
+                # Línea 2: Título y ubicación
+                writer.writerow(["Precios1", "", self.export_location.get()])
+                
+                # Líneas de productos
+                for item in export_data:
+                    precio_formateado = self.format_price_for_export(item['precio'])
+                    writer.writerow([item['descripcion'], item['divisor'], precio_formateado])
+                
+                # Línea final vacía
+                writer.writerow(["", "", "."])
+            
+            messagebox.showinfo("✅ Exportación exitosa", f"CSV exportado correctamente a:\n{filename}")
+            self.price_window.destroy()
+            
+        except Exception as e:
+            messagebox.showerror("❌ Error al exportar", f"No se pudo exportar el archivo:\n{e}")
+
+    def format_price_for_export(self, price):
+        """Formatea el precio según las reglas del CSV objetivo."""
+        if price < 1000:
+            return f"${price:.0f}"
+        else:
+            # Para precios >= 1000, usar formato con comas y comillas
+            return f'"${price:,.0f}"'
 
 
 # --- Ejecución Principal ---
